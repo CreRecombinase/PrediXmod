@@ -30,7 +30,7 @@ geneid <- sapply(strsplit(sapply(strsplit(genelist[,9],split=";"),"[",1)," "),"[
 proteinCoding <- sapply(strsplit(sapply(strsplit(genelist[,9],split=";"),"[",3)," "),"[",3)
 genanno <- data.frame(id=geneid,chrom=genelist[,1],genestart=genelist[,4],genestop=genelist[,4],genename=genename,stringsAsFactors=F)
 
-genanno <- genanno[proteinCodin=="protein_coding",]
+genanno <- genanno[proteinCoding=="protein_coding",]
 geneid <- geneid[proteinCoding=="protein_coding"]
 
 saveRDS(genanno,outfiles["GENEANNO.RDS"])
