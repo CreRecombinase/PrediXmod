@@ -145,7 +145,6 @@ for(i in 1:ncol(expdata)){
         bestbetainfo$beta <- bestbetas
         bestbetainfo$gene <- gene
         outfile <- paste0(project.name,".",tis,".BetaTable.",ch,".",seg,".txt")
-        cat("Writing file")
         write.table(bestbetainfo, file=outfile,quote=F,row.names=F,sep="\t",col.names=(i==1),append=(i!=1))
     }else{
 	genename <- gene
