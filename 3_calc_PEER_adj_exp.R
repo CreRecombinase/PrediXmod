@@ -90,6 +90,8 @@ nonbin<-apply(t.expdata,1,rowtable) ##apply to matrix
 t.expdata <- t.expdata[nonbin,] ##remove binary genes from matrix
 
 qn.t.expdata <- normalize.quantiles(t.expdata) ##quantile normalize
+nonbin <- apply(qn.t.expdata,1,rowtable)
+qn.t.expdata <- qn.t.expdata[nonbin,]
 rn.qn.t.expdata <- apply(qn.t.expdata,1,rntransform) ##rank transform to normality & transposes, not sure why?##
 
 ###Now we can create the model object, ### from https://github.com/PMBio/peer/wiki/Tutorial
@@ -114,6 +116,12 @@ PEER_update(model)
 
 factors = PEER_getX(model)
 rownames(factors) <- rownames(expdata)
+
+                                        #Change to given tissue directory (Make it if it doesn't exist)
+if(!file.exists(tis)){
+    dir.create(tis,showWarnings=T)
+}
+setwd(tis)
 filename <- paste0(tis,".",Nk,".PEER.factors.",date,".txt")
 write.table(factors,file =filename, quote=F)
 weights = PEER_getW(model)

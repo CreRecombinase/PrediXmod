@@ -17,11 +17,11 @@ saveRDS(bimdata,paste0(project.name,".SNPanno.RDS"))
 snps <- scan(files["SNPs"],what="character",sep="\n")
 IDs <- scan(files["IDs"],what="character",sep="\n")
 
-snpdata <- matrix(scan(files["SNPMatrix"],what=numeric()),ncol=length(IDs))
+snpdata <- matrix(scan(files["SNPMatrix"],what=numeric()),ncol=length(IDs),byrow=T)
 print(dim(snpdata))
 print(length(snps))
 print(length(IDs))
 rownames(snpdata) <- snps
 colnames(snpdata) <- IDs
-saveRDS(snpdata,paste0(project.name,"SNPxID.RDS"))
+saveRDS(snpdata,paste0(project.name,".SNPxID.RDS"))
 

@@ -1,5 +1,7 @@
 args <- commandArgs(trailingOnly=T)
 
+
+
 project.name <- args[1]
 my.dir <- args[2]
 tissue <- args[3]
@@ -8,24 +10,34 @@ tis <- gsub(" ","",tissue)
 Nk <- 15
 
 setwd(my.dir)
+
 files <- paste0( project.name,c(paste0(".",tis,".exp.adj.",Nk,"PEERfactors.3PCs.gender.IDxGENE.RDS"),
-                                "SNPxID.RDS",
+                                ".SNPxID.RDS",
                                 ".SNPanno.RDS",
                                 ".protein-coding.anno.RDS"))
-if(!all(file.exists(files))){
+names(files) <- c("EXPdata","SNPdata","SNPanno","EXPanno")
+if(!all(file.exists(files)[-1])){
     print("File not found:")
     print(files[!file.exists(files)])
     stop()
 }
 
-names(files) <- c("EXPdata","SNPdata","SNPanno","EXPanno")
-print("Reading files!")
-expdata <- readRDS(files["EXPdata"])
+print("Reading Annotation files!")
 snpdata <- readRDS(files["SNPdata"])
 snpanno <- readRDS(files["SNPanno"])
-rownames(snpanno) <- snpanno$rsid
 expanno <- readRDS(files["EXPanno"])
+
+rownames(snpanno) <- snpanno$rsid
 rownames(expanno) <- expanno$id
+
+setwd(tis)
+
+print(paste0("Reading ",tis," specific files"))
+
+expdata <- readRDS(files["EXPdata"])
+
+
+
 
 
 rownames(expdata) <- sapply(strsplit(rownames(expdata),"-",fixed=T),function(x)paste0(x[1],"-",x[2]))
@@ -48,7 +60,7 @@ for(j in names(snpl)){
     tgenel <- genel[[j]]
     tsnpl <- snpl[[j]]
     x[[j]]<- numeric()
-    for(i in seq(1e06,max(tgenel$genestop),1e06)){
+    for(i in seq(1e06,max(c(max(tgenel$genestop),max(tsnpl$pos))),1e06)){
         lessgenepos <- max(c(tgenel$genestop[tgenel$genestop<i],0),na.rm=T)
         lesssnppos <- max(c(tsnpl$pos[tsnpl$pos<i],0),na.rm=T)
         moregenepos <- min(c(tgenel$genestart[tgenel$genestart>i],max(tgenel$genestart)),na.rm = T)
@@ -77,45 +89,51 @@ for(i in names(x)){
         if((sum(indexSNP)>0)&&(sum(indexEXP)>0)){
             tsnpanno <- tsnpl[indexSNP,]
             tgeneanno <- tgenel[indexEXP,]
-            tsnpdata <- snpdata[,rownames(tsnpanno)]
-            texpdata <- expdata[,rownames(tgeneanno)]
+            tsnpdata <- snpdata[,rownames(tsnpanno),drop=F]
+            texpdata <- expdata[,rownames(tgeneanno),drop=F]
             outfiles <- paste0(project.name,".",tis,c(".SNPanno.",
                                                       ".EXPanno.",
                                                       ".IDxSNP.",
                                                       ".IDxGENE."),i,".",j,".RDS")
             names(outfiles) <- c("SNPANNO","EXPANNO","SNPDATA","EXPDATA")
-            if(!all(file.exists(outfiles))){
+            
+            print(paste(i,j,sep="."))
+            saveRDS(tsnpanno,outfiles["SNPANNO"])
+            saveRDS(tgeneanno,outfiles["EXPANNO"])
+            
+            saveRDS(tsnpdata,outfiles["SNPDATA"])
+            saveRDS(texpdata,outfiles["EXPDATA"])
+            
+        }
+        else{
+            if(j!=length(x[[i]])){
+                print(paste(i,j,"empty!"))
+            }
+        }
+        if(j==length(x[[i]])){
+            indexSNP <- tsnpl$pos>x[[i]][j]
+            indexEXP <- tgenel$genestart>x[[i]][j]
+            if((sum(indexSNP)>0)&&(sum(indexEXP)>0)){
+                tsnpanno <- tsnpl[indexSNP,]
+                tgeneanno <- tgenel[indexEXP,]
+                tsnpdata <- snpdata[,rownames(tsnpanno),drop=F]
+                texpdata <- expdata[,rownames(tgeneanno),drop=F]
+                outfiles <- paste0(project.name,".",tis,c(".SNPanno.",
+                                                          ".EXPanno.",
+                                                          ".IDxSNP.",
+                                                          ".IDxGENE."),i,".",(j+1),".RDS")
+                names(outfiles) <- c("SNPANNO","EXPANNO","SNPDATA","EXPDATA")
+          
+                print(paste(i,(j+1),sep="."))
                 saveRDS(tsnpanno,outfiles["SNPANNO"])
                 saveRDS(tgeneanno,outfiles["EXPANNO"])
                 
                 saveRDS(tsnpdata,outfiles["SNPDATA"])
                 saveRDS(texpdata,outfiles["EXPDATA"])
+            }else{
+                print(paste(i,j,"empty!"))
             }
-            if(j==length(x[[i]])){
-                indexSNP <- tsnpl$pos>x[[i]][j]
-                indexEXP <- tgenel$genestart>x[[i]][j]
-                if((sum(indexSNP)>0)&&(sum(indexEXP)>0)){
-                    tsnpanno <- tsnpl[indexSNP,]
-                    tgeneanno <- tgenel[indexEXP,]
-                    tsnpdata <- snpdata[,rownames(tsnpanno)]
-                    texpdata <- expdata[,rownames(tgeneanno)]
-                    outfiles <- paste0(project.name,".",tis,c(".SNPanno.",
-                                                              ".EXPanno.",
-                                                              ".IDxSNP.",
-                                                              ".IDxGENE."),i,".",(j+1),".RDS")
-                    names(outfiles) <- c("SNPANNO","EXPANNO","SNPDATA","EXPDATA")
-                    if(!all(file.exists(outfiles))){
-                        saveRDS(tsnpanno,outfiles["SNPANNO"])
-                        saveRDS(tgeneanno,outfiles["EXPANNO"])
-                        
-                        saveRDS(tsnpdata,outfiles["SNPDATA"])
-                        saveRDS(texpdata,outfiles["EXPDATA"])
-                    }
-                }
-            }
-            
-        }
-        
+        }        
     }
 }
 
