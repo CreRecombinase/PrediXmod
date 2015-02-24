@@ -39,6 +39,25 @@ expdata <- readRDS(files["EXPdata"])
 
 
 
+sizesave <- function(snpanno,geneanno,snpdata,expdata,i,j,s,project.name,tis){
+    if(ncol(expdata)<300){
+        outfiles <- paste0(project.name,".",tis,c(".SNPanno.",
+                                                  ".EXPanno.",
+                                                  ".IDxSNP.",
+                                                  ".IDxGENE."),i,".",j,".RDS")
+        names(outfiles) <- c("SNPANNO","EXPANNO","SNPDATA","EXPDATA")
+        print(paste(i,j,sep="."))
+        saveRDS(snpanno,outfiles["SNPANNO"])
+        saveRDS(geneanno,outfiles["EXPANNO"])
+        saveRDS(snpdata,outfiles["SNPDATA"])
+        saveRDS(expdata,outfiles["EXPDATA"])
+    }
+    else{
+        sizesave(snpanno,geneanno[1:300,],snpdata,expdata[,1:300],i,j,s,project.name,tis)
+        s <- c(s,length(s)+2)
+        sizesave(snpanno,geneanno[301:nrow(geneanno),],snpdata,expdata[,301:ncol(expdata)],i,s[length(s)],s,project.name,tis)
+    }
+}
 
 rownames(expdata) <- sapply(strsplit(rownames(expdata),"-",fixed=T),function(x)paste0(x[1],"-",x[2]))
 snpdata <- t(snpdata)
@@ -76,7 +95,8 @@ for(i in names(x)){
     print(i)
     tsnpl <- snpl[[i]]
     tgenel <- genel[[i]]
-    for(j in seq(length.out=length(x[[i]]))){
+    s <- seq(length.out=length(x[[i]]))
+    for(j in s){
         print(j)
         if(j==1){
             indexSNP <- tsnpl$pos<x[[i]][j]
@@ -91,18 +111,7 @@ for(i in names(x)){
             tgeneanno <- tgenel[indexEXP,]
             tsnpdata <- snpdata[,rownames(tsnpanno),drop=F]
             texpdata <- expdata[,rownames(tgeneanno),drop=F]
-            outfiles <- paste0(project.name,".",tis,c(".SNPanno.",
-                                                      ".EXPanno.",
-                                                      ".IDxSNP.",
-                                                      ".IDxGENE."),i,".",j,".RDS")
-            names(outfiles) <- c("SNPANNO","EXPANNO","SNPDATA","EXPDATA")
-            
-            print(paste(i,j,sep="."))
-            saveRDS(tsnpanno,outfiles["SNPANNO"])
-            saveRDS(tgeneanno,outfiles["EXPANNO"])
-            
-            saveRDS(tsnpdata,outfiles["SNPDATA"])
-            saveRDS(texpdata,outfiles["EXPDATA"])
+            s <- sizesave(tsnpanno,tgeneanno,tsnpdata,texpdata,i,j,s,project.name,tis)
             
         }
         else{
@@ -118,24 +127,16 @@ for(i in names(x)){
                 tgeneanno <- tgenel[indexEXP,]
                 tsnpdata <- snpdata[,rownames(tsnpanno),drop=F]
                 texpdata <- expdata[,rownames(tgeneanno),drop=F]
-                outfiles <- paste0(project.name,".",tis,c(".SNPanno.",
-                                                          ".EXPanno.",
-                                                          ".IDxSNP.",
-                                                          ".IDxGENE."),i,".",(j+1),".RDS")
-                names(outfiles) <- c("SNPANNO","EXPANNO","SNPDATA","EXPDATA")
-          
-                print(paste(i,(j+1),sep="."))
-                saveRDS(tsnpanno,outfiles["SNPANNO"])
-                saveRDS(tgeneanno,outfiles["EXPANNO"])
-                
-                saveRDS(tsnpdata,outfiles["SNPDATA"])
-                saveRDS(texpdata,outfiles["EXPDATA"])
+                s <- sizesave(tsnpanno,tgeneanno,tsnpdata,texpdata,i,j+1,s,project.name,tis)
             }else{
                 print(paste(i,j,"empty!"))
             }
         }        
     }
 }
+            
+        
+       
 
 
 

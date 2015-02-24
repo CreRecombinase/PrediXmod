@@ -42,7 +42,7 @@ expanno <- readRDS(filenames["EXPANNO"])
 
 
 k <- 10 ### k-fold CV
-n <- 10 #number of k-fold CV replicates
+n <- 3 #number of k-fold CV replicates
  
 ################################################
 ### Functions & Libraries
@@ -60,7 +60,7 @@ SNP_Exp <- function(gene,snpdata=snpdata,expdata=expdata,snpanno=snpanno,expanno
     exppheno[is.na(exppheno)] <- 0
     rownames(exppheno) <- rownames(expdata)
     genename <- expanno[gene,"genename"]
-    return(list(exp=exppheno,snp=cissnpdata,genename=genename))
+    return(list(exp=exppheno,snp=cissnpdata,genename=genename,ensid=gene))
 }
 
 glmnet_wrapper <- function(listel,alpha,nrep.set,nfold.set,isParallel=F){
@@ -73,46 +73,57 @@ glmnet_wrapper <- function(listel,alpha,nrep.set,nfold.set,isParallel=F){
     }
     else{
         print("starting CV")
-        return(replicate(cv.glmnet(snp,exp,nfolds=nfold.set,alpha=alpha,keep=T,parallel=isParallel,standardize=F),n=nrep.set))
+        return(replicate(cv.glmnet(snp,exp,nfolds=nfold.set,alpha=alpha,keep=T,parallel=isParallel,standardize=F),n=nrep.set,simplify=F))
     }
 }
 
-results_parser <- function(cv.list,exp,genename,ensid){
+list_indexer <- function(l,name,simplify=T){
+  return(sapply(l,function(x)x[[name]],simplify=simplify))
+}
+
+results_parser <- function(cv.list,listel){
+    snp <- listel[["snp"]]
+    exp <- listel[["exp"]]
+    ensid <- listel[["ensid"]]
+    genename <- listel[["genename"]]
     if(is.null(cv.list)){
         return(NULL)
     }
-    cvm.avg <- mean(sapply(cv.list["cvm",],min))
-                                        #Find the index of the lambda with the lowest cvm for each cv.glmnet call
-    each.min <- sapply(cv.list["cvm",],which.min)
 
+    cvm.mins <- apply(list_indexer(cv.list,"cvm","array"),2,min)
+    cvm.avg <- mean(cvm.mins)
+    cvm.var <- var(cvm.mins)
+    each.min <- apply(list_indexer(cv.list,"cvm","array"),2,which.min)
                                         #Find the average of the predictors for the best lambda in each cv.glmnet call
                                         #This line simply takes the columns of fit.preval corresponding to the best lambda for each cv.glmnet, puts them in a matrix, and takes the average of the rows
-    pred.avg <- rowMeans(mapply(
-        function(x,y){
-            x[,y]
-        },
-        cv.list["fit.preval",],
-        each.min
-    )
-                         )
                                         #Find the most popular lambda (sorta)
-    nrow.max <- as.integer(mean(each.min))        
-    best.lambda <- cv.list["lambda",1][[1]][nrow.max]
     
+    nrow.max <- round(mean(each.min))
+    best.lambda <- cv.list[[1]][["lambda"]][nrow.max]
+    lambdavar <- var(list_indexer(cv.list,"lambda.min"))
+    lambda.frac.diff <- sum(list_indexer(cv.list,"lambda.min")!=best.lambda)/length(cv.list)
+    pred.avg <- predict(cv.list[[1]],newx=snp,s=best.lambda)
                                         #Find the betas for our favorite lambda
-    betadf <- data.frame(beta=cv.list["glmnet.fit",1][[1]][["beta"]][,nrow.max],gene=genename)
+    betadf <- data.frame(beta=cv.list[[1]][["glmnet.fit"]][["beta"]][,nrow.max],gene=genename)
     betadf <- betadf[betadf$beta>0,,drop=F]
     
-    res <- summary(lm(exp~pred.avg)) 
+    res <- summary(lm(exp~pred.avg))
+
     resultsrow <- data.frame(gene=genename,
                              ensid=ensid,
                              mean.cvm=cvm.avg,
+                             var.cvm =cvm.var,
+                             lambda.var=lambdavar,
+                             lambda.frac.diff=lambda.frac.diff,
                              mean.lambda.iteration=nrow.max,
                              lambda.min=best.lambda,
                              n.snps=nrow(betadf),
                              R2=res$r.squared,
                              alpha=alpha,
-                             pval=res$coefficients[2,4],stringsAsFactors=F)
+                             pval=ifelse(nrow(res$coefficients)>1,
+                                 res$coefficients[2,4],
+                                 1),
+                             stringsAsFactors=F)
     rownames(resultsrow) <- gene
     return(list(resultsrow=resultsrow,betadf=betadf))
 }
@@ -121,40 +132,46 @@ results_parser <- function(cv.list,exp,genename,ensid){
 ###run LASSO CV
 
 set.seed(1001)
-results.list <- list()
+
+beta.list <- list()
 j <- 0
+firstresult <- T
+firstbeta<-T
+resultsname <- paste0(project.name,".",tis,".ResultsArray.",ch,".",seg,".txt")
+outfile <- paste0(project.name,".",tis,".BetaTable.",ch,".",seg,".txt")
+finishedfile <- paste0(project.name,".",tis,".Finished.",ch,".",seg,".txt")
 for(i in 1:ncol(expdata)){
     gene <- colnames(expdata)[i]
     cat(i,"/",ncol(expdata),"\n")
                                         #Pull out the SNP matrix and expression vector corresponding to our gene 
     SNP_EXPlist <- SNP_Exp(gene,snpdata=snpdata,expdata=expdata,snpanno=snpanno,expanno=expanno)
                                         #cv.list will be a data frame where each column is a cv.glmnet result, and each row is a return field
-    for (alpha in c(1,0.5,0.95)){
-        j <- j+1
+    for (alpha in c(1,0.5,0.95,0.05)){
         cv.list <- glmnet_wrapper(SNP_EXPlist,alpha=alpha,nrep.set=n,nfold.set=k)
         
         print("CV finished")
-        parsed_results <- results_parser(cv.list,SNP_EXPlist[["exp"]],SNP_EXPlist[["genename"]],gene)
-        results.list[[j]] <- parsed_results[["resultsrow"]]
-                                        #cv.list is null if there aren't enough SNPs which satisfy our criteria
+        parsed_results <- results_parser(cv.list,SNP_EXPlist)
 
-    
+        
+        results.df <- parsed_results[["resultsrow"]]
+        write.table(results.df,file=resultsname,sep="\t",col.names=firstresult,append=(!firstresult),quote=F,row.names=F)
+        firstresult <- F
+                                        #cv.list is null if there aren't enough SNPs which satisfy our criteria
         bestbetainfo <- parsed_results[["betadf"]]
         if(!is.null(bestbetainfo)){
             if(nrow(bestbetainfo)>0){
                 bestbetainfo <- data.frame(bestbetainfo,snpanno[rownames(bestbetainfo),],alpha=alpha,stringsAsFactors=F)
-                
-                outfile <- paste0(project.name,".",alpha,".",tis,".BetaTable.",ch,".",seg,".txt")
-                write.table(bestbetainfo, file=outfile,quote=F,row.names=F,sep="\t",col.names=(j==1),append=(j!=1))
+                write.table(bestbetainfo,file=outfile,sep="\t",quote=F,row.names=F,col.names=firstbeta,append=!firstbeta)
+                firstbeta <- F
             }
         }
     }
 }
-resultsarray <- rbind.fill(results.list)
+
 time.stop <- Sys.time()
 elapsed <- time.stop-start.time
+write(elapsed,file=finishedfile,append=F)
 print(elapsed)
-saveRDS(resultsarray,paste0(project.name,".",alpha,".",tis,".ResultsArray.",ch,".",seg,".RDS"))
 
 
 
