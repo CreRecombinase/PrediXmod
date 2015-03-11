@@ -25,7 +25,7 @@ snplist <- unique(eqtldf$rsid)
 genelist <- unique(eqtldf$gene)
 genemat <- matrix(data = 0,nrow = length(genelist),ncol = 423)
 
-freadsnps <- function(file,lines,linetotal,snplist){
+freadsnps <- function(file,lines,snplist){
   con <- file(file)
   open(con)
   rlines <- 0
@@ -45,7 +45,7 @@ freadsnps <- function(file,lines,linetotal,snplist){
 }
 for(i in 1:length(allfiles)){
   print(paste0("Reading in file ",allfiles[i]))
-  dosagemat <- freadsnps(allfiles[i],100000,9999999,snplist)
+  dosagemat <- freadsnps(allfiles[i],100000,snplist)
   tempeqtldf <- eqtldf[ eqtldf$rsid %in% rownames(dosagemat),]
   tempeqtldf$dallele <- dosagemat[tempeqtldf$rsid,refallele]
   tempeqtldf$weight[ tempeqtldf$eff_allele != tempeqtldf$dallele] <- -tempeqtldf$weight[ tempeqtldf$eff_allele != tempeqtldf$dallele]
