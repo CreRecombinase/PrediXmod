@@ -105,7 +105,7 @@ results_parser <- function(cv.list,listel){
     pred.avg <- predict(cv.list[[1]],newx=snp,s=best.lambda)
                                         #Find the betas for our favorite lambda
     betadf <- data.frame(beta=cv.list[[1]][["glmnet.fit"]][["beta"]][,nrow.max],gene=genename)
-    betadf <- betadf[betadf$beta>0,,drop=F]
+    betadf <- betadf[betadf$beta!=0,,drop=F]
     
     res <- summary(lm(exp~pred.avg))
 
@@ -169,7 +169,7 @@ for(i in 1:ncol(expdata)){
 }
 
 time.stop <- Sys.time()
-elapsed <- time.stop-start.time
+elapsed <- difftime(time.stop,start.time,units="hours")
 write(elapsed,file=finishedfile,append=F)
 print(elapsed)
 
